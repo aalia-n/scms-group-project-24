@@ -4,7 +4,7 @@ import mujoco.viewer
 from pathlib import Path
 
 # Path to the UR3e MJCF model
-model_path = Path(__file__).parent / "universal_robots_ur3e" / "ur3e.xml"
+model_path = Path(__file__).parent / "ur3e.xml"
 
 # Load the MuJoCo model and create simulation data
 model = mujoco.MjModel.from_xml_path(str(model_path))
