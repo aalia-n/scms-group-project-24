@@ -54,8 +54,8 @@ def world_to_cam(T_wc, P_W):
 # ---------------------------------------------------------------- demo
 if __name__ == "__main__":
     import mujoco
-    import camera as cm
-    import environment as env                 # importable once camera.py has added 1_Main to the path
+    import step1_camera as cm
+    import step1_Main.environment as env                 # importable once camera.py has added 1_Main to the path
 
     model = env.build_scene()
     data = mujoco.MjData(model)

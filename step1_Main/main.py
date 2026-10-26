@@ -15,10 +15,10 @@ for folder in ("1_Main", "3_Aalia_Work", "4_Sameeha_Work", "5_Yara_Work"):
     sys.path.insert(0, str(REPO / folder))
 
 import environment as env                                    # noqa: E402
-import camera                                                # noqa: E402  Aalia
-from detection import detect_object                          # noqa: E402  Aalia
-from localisation import localise                            # noqa: E402  Aalia
-from frames import T_world_cam                               # noqa: E402  Aalia
+import step3_Aalia_Work.step1_camera as camera
+from step3_Aalia_Work.step3_detection import detect_object
+from step3_Aalia_Work.step4_localisation import localise
+from step3_Aalia_Work.step2_frames import T_world_cam
 # from observer import JointObserver                         # Sameeha
 # from controller import PickController                      # Yara
 

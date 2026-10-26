@@ -42,8 +42,8 @@ def detect_object(rgb):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import mujoco
-    import camera as cm
-    import environment as env
+    import step1_camera as cm
+    import step1_Main.environment as env
 
     model = env.build_scene()
     data = mujoco.MjData(model)
