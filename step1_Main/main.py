@@ -2,25 +2,18 @@
 main.py ---> whole integrated pipeline, shared by all team members 
 '''
 
-import sys
 import time
-from pathlib import Path
-
 import numpy as np
 import mujoco
 import mujoco.viewer
 
-REPO = Path(__file__).resolve().parents[1]
-for folder in ("1_Main", "3_Aalia_Work", "4_Sameeha_Work", "5_Yara_Work"):
-    sys.path.insert(0, str(REPO / folder))
-
-import environment as env                                    # noqa: E402
+import step1_Main.environment as env                                    # noqa: E402
 import step3_Aalia_Work.step1_camera as camera
 from step3_Aalia_Work.step3_detection import detect_object
 from step3_Aalia_Work.step4_localisation import localise
 from step3_Aalia_Work.step2_frames import T_world_cam
-# from observer import JointObserver                         # Sameeha
-# from controller import PickController                      # Yara
+# from step4_Sameeha_Work.observer import JointObserver      # Sameeha
+# from step5_Yara_Work.controller import PickController      # Yara
 
 PERCEPTION_PERIOD = 0.1     # s; camera runs at 10 Hz, much slower than the physics
 

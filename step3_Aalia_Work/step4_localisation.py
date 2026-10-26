@@ -16,9 +16,8 @@ Run:  python localisation.py   -> 20 random cube positions, RMS error with and w
 
 import numpy as np
 
-from step1_camera import backproject, env
-from step2_frames import cam_to_world
-
+from step3_Aalia_Work.step1_camera import backproject, env
+from step3_Aalia_Work.step2_frames import cam_to_world
 
 def localise(mask, depth, K, T_wc, half_depth=env.OBJ_HALF):
     """Returns (p_W, p_C), the object centre in the world and camera frames, or None."""
@@ -33,9 +32,9 @@ def localise(mask, depth, K, T_wc, half_depth=env.OBJ_HALF):
 # ---------------------------------------------------------------- demo
 if __name__ == "__main__":
     import mujoco
-    import step1_camera as cm
-    from step3__detection import detect_object
-    from step2_frames import T_world_cam
+    import step3_Aalia_Work.step1_camera as cm
+    from step3_Aalia_Work.step3_detection import detect_object
+    from step3_Aalia_Work.step2_frames import T_world_cam
 
     model = env.build_scene()
     data = mujoco.MjData(model)

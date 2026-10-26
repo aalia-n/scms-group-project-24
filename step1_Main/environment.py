@@ -18,7 +18,7 @@ import numpy as np
 import mujoco
 
 REPO = Path(__file__).resolve().parents[1]
-ROBOT_XML = REPO / "2_mujoco_UR3_tutorial_from_rafael" / "ur3e.xml"
+ROBOT_XML = REPO / "step2_mujoco_UR3_tutorial_from_rafael" / "ur3e.xml"
 
 # ---------------------------------------------------------------- wrist camera
 CAM_NAME = "wrist_cam"

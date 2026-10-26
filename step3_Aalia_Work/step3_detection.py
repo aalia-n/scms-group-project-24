@@ -42,7 +42,7 @@ def detect_object(rgb):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import mujoco
-    import step1_camera as cm
+    import step3_Aalia_Work.step1_camera as cm
     import step1_Main.environment as env
 
     model = env.build_scene()
