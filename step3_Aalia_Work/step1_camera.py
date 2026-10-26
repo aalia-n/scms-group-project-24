@@ -22,6 +22,12 @@ import step1_Main.environment as env
 RESULTS = HERE / "results"
 MAX_DEPTH = 3.0                       # m; further than this counts as "no return" (depth 0)
 
+# Sensor noise model (Week 4 RGB-D model): depth sigma grows with d^2; depth drops out at
+# edges (range discontinuities) and at random; colour has Gaussian pixel noise.
+SIGMA_D = (0.0015, 0.0022)            # sigma_d = a + b d^2  [m]
+EDGE_JUMP = 0.005                     # m; depth gradient above this counts as an edge
+P_DROPOUT = 0.01                      # chance any depth pixel has no return
+SIGMA_RGB = 3.0                       # colour noise, in 0-255 intensity levels
 
 # ---------------------------------------------------------------- pinhole model
 def intrinsics_from_fovy(fovy_deg, width, height) -> np.ndarray:
@@ -46,6 +52,21 @@ def backproject(uv, depth, K) -> np.ndarray:
     uv = np.asarray(uv, dtype=float).reshape(2, -1)
     uv1 = np.vstack([uv, np.ones(uv.shape[1])])
     return (np.linalg.inv(K) @ uv1) * np.asarray(depth, dtype=float).ravel()
+
+# ---------------------------------------------------------------- noise
+def depth_sigma(d):
+    return SIGMA_D[0] + SIGMA_D[1] * d ** 2
+
+
+def noisy_depth(depth, rng):
+    noisy = depth + rng.normal(size=depth.shape) * depth_sigma(depth)
+    edges = np.abs(np.gradient(depth, axis=0)) + np.abs(np.gradient(depth, axis=1)) > EDGE_JUMP
+    noisy[(depth == 0) | edges | (rng.random(depth.shape) < P_DROPOUT)] = 0.0
+    return noisy
+
+
+def noisy_rgb(rgb, rng):
+    return np.clip(rgb + rng.normal(0.0, SIGMA_RGB, rgb.shape), 0, 255).astype(np.uint8)
 
 
 # ---------------------------------------------------------------- rendering

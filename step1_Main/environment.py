@@ -39,7 +39,14 @@ OBJ_RGBA = (0.85, 0.10, 0.10, 1.0)
 OBJ_REGION = ((0.05, 0.21), (-0.30, -0.15))
 
 
-def build_scene(robot_xml=ROBOT_XML) -> mujoco.MjModel:
+# ------------------------------ calibration checkerboard (only needed sometimes)
+BOARD_NAME = "checkerboard"
+BOARD_SQUARES = (10, 7)                 # squares across, down -> 9 x 6 internal corners (as in Week 3)
+BOARD_SQUARE = 0.015                    # m, side of one square
+
+
+def build_scene(robot_xml=ROBOT_XML, calibration_board=False) -> mujoco.MjModel:
+
     base = mujoco.MjModel.from_xml_path(str(robot_xml))
 
     # Camera pose in the wrist frame: the flange frame turned 180 deg about x,
@@ -76,6 +83,9 @@ def build_scene(robot_xml=ROBOT_XML) -> mujoco.MjModel:
 
     light = world.add_light()
     light.pos, light.dir, light.diffuse = (0, 0, 2.0), (0, 0, -1.0), (0.7, 0.7, 0.7)
+    
+    if calibration_board:
+        add_checkerboard(world)
 
     # The free joint adds 7 qpos entries; extend the 6-entry keyframes in ur3e.xml to match.
     for key in spec.keys:
@@ -84,6 +94,26 @@ def build_scene(robot_xml=ROBOT_XML) -> mujoco.MjModel:
 
     return spec.compile()
 
+def add_checkerboard(world):
+    """
+    A checkerboard on a white plate, as a mocap body: it is moved by setting
+    data.mocap_pos / data.mocap_quat, takes no part in physics and collides with nothing.
+    """
+    nx, ny = BOARD_SQUARES
+    board = world.add_body()
+    board.name, board.mocap, board.pos = BOARD_NAME, True, (2.0, 0.0, 0.5)
+    plate = board.add_geom()
+    plate.type, plate.rgba = mujoco.mjtGeom.mjGEOM_BOX, (1, 1, 1, 1)
+    plate.size = ((nx + 2) * BOARD_SQUARE / 2, (ny + 2) * BOARD_SQUARE / 2, 0.002)   # one-square white border
+    plate.contype = plate.conaffinity = 0
+    for a in range(nx):
+        for b in range(ny):
+            if (a + b) % 2 == 0:
+                sq = board.add_geom()
+                sq.type, sq.rgba = mujoco.mjtGeom.mjGEOM_BOX, (0, 0, 0, 1)
+                sq.size = (BOARD_SQUARE / 2, BOARD_SQUARE / 2, 0.0021)                # 0.1 mm proud of the plate
+                sq.pos = ((a - (nx - 1) / 2) * BOARD_SQUARE, (b - (ny - 1) / 2) * BOARD_SQUARE, 0.0)
+                sq.contype = sq.conaffinity = 0
 
 def reset_home(model, data):
     mujoco.mj_resetDataKeyframe(model, data, 0)
