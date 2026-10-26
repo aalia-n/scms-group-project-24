@@ -20,7 +20,7 @@ import mujoco
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "1_Main"))
-import environment as env                                    # noqa: E402
+import step1_Main.environment as env # noqa: E402
 
 RESULTS = HERE / "results"
 MAX_DEPTH = 3.0                       # m; further than this counts as "no return" (depth 0)
