@@ -28,7 +28,8 @@ def main(seed=None):
     # observer = JointObserver(model)                        # Sameeha
     # controller = PickController(model)                     # Yara
 
-    meas, target, target_cov = None, None, None   # latest measurement; fused target estimate and covariance    next_perception, next_print = 0.0, 0.0
+    meas, target, target_cov = None, None, None   # latest measurement; fused target estimate and covariance    
+    next_perception, next_print = 0.0, 0.0
 
     with mujoco.viewer.launch_passive(model, data) as viewer:
         while viewer.is_running():
