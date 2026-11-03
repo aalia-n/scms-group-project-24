@@ -1,0 +1,11 @@
+Metric,Value
+completed,True
+final_stage,DONE
+cube_seed,1
+task_duration_s,23.619999999997788
+clipping_steps,0
+placement_error_m,0.0007887980288428977
+max_lqr_eigenvalue,0.9859709656555385
+mean_tracking_rmse_rad,0.004385184242072944
+mean_kalman_position_rmse_rad,0.0002403045836145682
+mean_kalman_velocity_rmse_rad_s,0.0053032138203954705

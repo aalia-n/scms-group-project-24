@@ -1,0 +1,6 @@
+Metric,Value
+completed,True
+clipping_steps,0
+placement_error_m,0.0008
+max_lqr_eigenvalue,0.9859709656555385
+final_stage,DONE

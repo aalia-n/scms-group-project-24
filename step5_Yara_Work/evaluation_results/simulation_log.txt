@@ -1,0 +1,56 @@
+
+================================
+STEP 4 - PICK AND PLACE
+================================
+Kalman filter initialised
+LQR maximum eigenvalue: 0.9859709656555385
+
+UR3e vision-guided pick-and-place started
+STAGE: DETECT
+Cube detected: [ 0.132 -0.158  0.021]
+
+STAGE: APPROACH
+t=0.2s | stage=APPROACH | error=0.1916m
+t=1.0s | stage=APPROACH | error=0.1092m
+t=2.0s | stage=APPROACH | error=0.0480m
+t=3.0s | stage=APPROACH | error=0.0211m
+
+STAGE: LOWER
+t=4.0s | stage=LOWER | error=0.1035m
+t=5.0s | stage=LOWER | error=0.0483m
+t=6.0s | stage=LOWER | error=0.0224m
+Cube attached (simulated grasp)
+
+STAGE: LIFT
+t=7.0s | stage=LIFT | error=0.1273m
+t=8.0s | stage=LIFT | error=0.0656m
+t=9.0s | stage=LIFT | error=0.0302m
+t=10.0s | stage=LIFT | error=0.0137m
+
+STAGE: TRANSPORT
+t=11.0s | stage=TRANSPORT | error=0.0729m
+t=12.0s | stage=TRANSPORT | error=0.0329m
+t=13.0s | stage=TRANSPORT | error=0.0148m
+
+STAGE: PLACE
+t=14.0s | stage=PLACE | error=0.0816m
+t=15.0s | stage=PLACE | error=0.0350m
+t=16.0s | stage=PLACE | error=0.0154m
+t=17.0s | stage=PLACE | error=0.0069m
+t=18.0s | stage=PLACE | error=0.0031m
+Cube placement position: [ 0.2499 -0.1997  0.0234]
+Cube released
+
+STAGE: SETTLE
+
+STAGE: DONE
+
+========== STEP 4 RESULTS ==========
+Final stage: DONE
+Pick-and-place completed: True
+Actuator clipping steps: 0
+Final cube position: [ 0.2498 -0.1995  0.0209]
+Target cube position: [ 0.25   -0.2     0.0215]
+Final placement error: 0.0008 m
+Simulation finished
+
