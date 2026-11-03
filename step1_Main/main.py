@@ -1,65 +1,68 @@
-'''
-main.py ---> whole integrated pipeline, shared by all team members 
-'''
 
-import time
-import numpy as np
-import mujoco
-import mujoco.viewer
+"""
+  main()    runs the complete UR3e vision-guided pick-and-place system
 
-import step1_Main.environment as env                                    # noqa: E402
-import step3_Aalia_Work.step1_camera as camera                              # Aalia
-from step3_Aalia_Work.step6_perception import ObjectPerception, TargetFilter  # Aalia
-# from step4_Sameeha_Work.observer import JointObserver      # Sameeha
-# from step5_Yara_Work.controller import PickController      # Yara
+The integrated system uses:
+  Aalia     wrist RGB-D camera, object detection and target filtering
+  Sameeha   state-space model and Kalman observer
+  Yara      PBVS, LQR joint control and pick-and-place execution
 
-PERCEPTION_PERIOD = 0.1     # s; camera runs at 10 Hz, much slower than the physics
+The complete simulation loop is implemented in step5_Yara_Work/step4_pick_and_place.py.
+This file launches the integrated system so that all team members run the same pipeline.
+
+main.py   -> opens the viewer, runs pick-and-place and prints the final results
+"""
+
+from step5_Yara_Work.step4_pick_and_place import run_simulation  # Yara: integrated controller (Aalia + Sameeha + Yara)
+
+
+# ---------------------------------------------------------------- simulation settings
+CUBE_SEED = 1          # change this to test different randomised object positions
+SHOW_VIEWER = True     # open the MuJoCo viewer during the task
 
 
 def main(seed=None):
-    model = env.build_scene()
-    data = mujoco.MjData(model)
-    env.reset_home(model, data)
-    env.randomise_object(model, data, np.random.default_rng(seed))
+    if seed is None:
+        seed = CUBE_SEED
 
-    perception = ObjectPerception(model, seed=seed)
-    target_filter = TargetFilter()
-    camera.pose_arm_to_look_down(model, data, perception.cam.cam_id)   # temporary: until Yara's approach motion exists
-    # observer = JointObserver(model)                        # Sameeha
-    # controller = PickController(model)                     # Yara
+    print("\nUR3e TEAM INTEGRATED SYSTEM")
 
-    meas, target, target_cov = None, None, None   # latest measurement; fused target estimate and covariance    
-    next_perception, next_print = 0.0, 0.0
+    print("\nTeam contributions:")
+    print("Aalia   - RGB-D camera and object perception")
+    print("Sameeha - Kalman state estimation")
+    print("Yara    - PBVS and LQR control")
 
-    with mujoco.viewer.launch_passive(model, data) as viewer:
-        while viewer.is_running():
-            step_start = time.time()
+    print("\nStarting simulation...")
+    print("Cube seed:", seed)
 
-            # ---- perception (Aalia): 10 Hz
-            if data.time >= next_perception:
-                next_perception += PERCEPTION_PERIOD
-                meas = perception.measure(data)                  # Measurement, or None if not seen
-                target, target_cov = target_filter.update(meas)
-            # ---- estimation (Sameeha)
-            # x_hat, P = observer.update(data.sensordata, data.ctrl)
+    # ---- integrated simulation (Aalia + Sameeha + Yara)
+    # Builds the MuJoCo scene, detects the object, estimates the joint states,
+    # computes PBVS targets and LQR commands, then executes pick-and-place.
+    results = run_simulation(
+        log_performance=False,
+        cube_seed=seed,
+        show_viewer=SHOW_VIEWER
+    )
 
-            # ---- control (Yara)
-            # data.ctrl[:] = controller.step(meas, target, x_hat)
+    # ---- final results
+    print("\nTEAM INTEGRATION RESULTS")
 
-            mujoco.mj_step(model, data)
-            viewer.sync()
+    print("Task completed:", results["completed"])
+    print("Final stage:", results["final_stage"])
+    print(f"Task duration: {results['task_duration_s']:.2f} s")
 
-            if data.time >= next_print:
-                next_print += 1.0
-                print(f"t = {data.time:5.1f} s   target (world) = "
-                      f"{'not detected' if target is None else np.round(target, 3)}")
+    if results["placement_error_m"] is not None:
+        print(f"Final placement error: {results['placement_error_m'] * 1000:.3f} mm")
 
-            # real-time pacing
-            dt = model.opt.timestep - (time.time() - step_start)
-            if dt > 0:
-                time.sleep(dt)
+    print("Actuator clipping steps:", results["clipping_steps"])
 
-    perception.close()
+    # ---- task completion
+    if results["completed"]:
+        print("\nFINAL RESULT: TASK COMPLETED")
+    else:
+        print("\nFINAL RESULT: TASK NOT COMPLETED")
+
+    return results
 
 
 if __name__ == "__main__":
