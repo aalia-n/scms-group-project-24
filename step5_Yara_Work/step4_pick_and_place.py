@@ -32,7 +32,7 @@ PERCEPTION_PERIOD = 0.1
 REQUIRED_DETECTIONS = 3
 
 # ---------------------------------------------------------------- simulation settings
-MAX_TIME = 25.0
+MAX_TIME = 30.0
 SETTLE_TIME = 5.0
 STABLE_STEPS = 20
 
