@@ -1,3 +1,5 @@
+#this code jusy mainly focuses on testing the movemnts of the UR3e in the MUJOCO environemnt.
+
 import time
 import numpy as np
 import mujoco
@@ -5,76 +7,71 @@ import mujoco.viewer
 
 import step1_Main.environment as env
 
-#LOAD SHARED ENVIRONMENT
+
+# ---- Loading the Environemnt.
+# Week 1: Dynamic systems
+# Load the UR3e robot and initialise the MuJoCo simulation.
+
 model = env.build_scene()
 data = mujoco.MjData(model)
 
-# Reset the robot to its home configuration
+# Reset robot to its initial home position.
 env.reset_home(model, data)
 
 
-#DEFINE ROBOT JOINT POSITIONS
+# ---- Defing the joint positions of the UR3e
+# Week 1: Joint-space position control
+# q = [q1, q2, q3, q4, q5, q6]
+# Each value represents a joint angle in radians.
 
-# Starting position from the XML home keyframe
-home_q = np.array([
-    -1.5708,
-    -1.5708,
-     1.5708,
-    -1.5708,
-    -1.5708,
-     0.0
-])
+# Initial robot configuration.
+home_q = np.array([-1.5708, -1.5708, 1.5708, -1.5708, -1.5708, 0.0])
 
-# Test target position
-target_q = np.array([
-    -1.0,
-    -1.2,
-     1.2,
-    -1.0,
-    -1.2,
-     0.5
-])
+# Desired target configuration.
+target_q = np.array([-1.0, -1.2, 1.2, -1.0, -1.2, 0.5])
 
-#MOVEMENT
 
-# Time to move between positions (seconds)
+# ---- timing:
+# Define how long the robot moves and holds each position.
+# using simply maths to do so ----> Total cycle time = 2 * MOVE_TIME + 2 * HOLD_TIME
+
 MOVE_TIME = 4.0
-
-# Time to hold each position (seconds)
 HOLD_TIME = 2.0
 
-# Total cycle time
 CYCLE_TIME = 2 * MOVE_TIME + 2 * HOLD_TIME
 
-# STEP 4: SMOOTH TRAJECTORY
+
+# create smooth trajectory 
+# Week 1: Joint-space trajectory control
+# Cubic smoothstep: s = 3p^2 - 2p^3
+# Desired position: q_desired = q_start + s(q_end - q_start)
+# Ensures zero commanded velocity at the start and end.
 
 def smooth_move(start_q, end_q, progress):
-    """
-    Generate a smooth joint trajectory.
 
-    progress = 0 means starting position
-    progress = 1 means target position
-
-    Smoothstep gives zero commanded velocity
-    at the start and end of each movement.
-    """
-
+    # Limit movement progress between 0 and 1.
     progress = np.clip(progress, 0.0, 1.0)
 
-    # Cubic smoothstep
+    # Calculate smooth interpolation factor.
     s = 3 * progress**2 - 2 * progress**3
 
-    # Interpolate between the joint positions
+    # Calculate desired joint positions.
     q_desired = start_q + s * (end_q - start_q)
 
     return q_desired
 
-# STEP 5: MAIN SIMULATION
+
+# ----  starting the sim 
+# MuJoCo simulates the robot's motion and dynamics.
+#printing comments to help with debugging.
 
 print("\nUR3e automatic joint control started")
 
 print("Home position:", home_q)
 print("Target position:", target_q)
+
+# ---- The main control loop (closed-loop control)
+# Generate desired joint positions and send them to the actuators.
 
 with mujoco.viewer.launch_passive(model, data) as viewer:
 
@@ -82,57 +79,51 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
 
         step_start = time.time()
 
-        # Current time within the movement cycle
+        # ---- determine current movement stage
+        # Modulo (%) repeats the 12-second movement cycle.
         t = data.time % CYCLE_TIME
 
-        # from home to target
-
+        # ---- move from home to target (0-4 s)
         if t < MOVE_TIME:
 
             progress = t / MOVE_TIME
 
-            q_desired = smooth_move(
-                home_q,
-                target_q,
-                progress
-            )
+            q_desired = smooth_move(home_q, target_q, progress)
 
+        # ---- hold target position (4-6 s)
         elif t < MOVE_TIME + HOLD_TIME:
 
             q_desired = target_q.copy()
 
-        # from target to home
-
+        # ---- move from target to home (6-10 s)
         elif t < 2 * MOVE_TIME + HOLD_TIME:
 
-            progress = (
-                t - MOVE_TIME - HOLD_TIME
-            ) / MOVE_TIME
+            progress = (t - MOVE_TIME - HOLD_TIME) / MOVE_TIME
 
-            q_desired = smooth_move(
-                target_q,
-                home_q,
-                progress
-            )
+            q_desired = smooth_move(target_q, home_q, progress)
 
+        # ---- hold home position (10-12 s)
         else:
 
             q_desired = home_q.copy()
 
-        # SEND POSITION COMMANDS TO ROBOT
+        # ---- send joint position commands(closed loop control)
+        # Position actuator feedback: error = q_desired - q_actual
+        # MuJoCo's position actuators track the desired angles.
 
-
-        # The six actuators accept desired
-        # joint angles in radians.
         data.ctrl[:6] = q_desired
 
-        # Run one MuJoCo physics step
+        # ---- update robot dynamics
+        # Advance the physics simulation by one timestep.
+
         mujoco.mj_step(model, data)
 
-        # Update the viewer
+        # ---- update viewer
         viewer.sync()
 
-        # Keep simulation near real-time
+        # ---- maintain real-time simulation
+        # Synchronise execution with the MuJoCo timestep.
+
         elapsed = time.time() - step_start
 
         remaining = model.opt.timestep - elapsed
