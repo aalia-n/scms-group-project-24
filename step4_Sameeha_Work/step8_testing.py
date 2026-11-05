@@ -21,7 +21,9 @@ Run:  python step4_Sameeha_Work/step8_testing.py
 """
 
 import sys
+# time is imported to time the whole run and how long one observer update takes
 import time
+# warnings is imported to hide python-control's pole placement warnings
 import warnings
 from pathlib import Path
 
@@ -31,6 +33,7 @@ import mujoco
 HERE = Path(__file__).resolve().parent
 if str(HERE.parent) not in sys.path:
     sys.path.insert(0, str(HERE.parent))
+# importing every function I'm testing from steps 1-7 and observer.py
 from step4_Sameeha_Work.step1_state_space_model import (                 # noqa: E402
     load_scene, linearise, double_integrator, env, RESULTS)
 from step4_Sameeha_Work.step2_controllability_observability import (     # noqa: E402
@@ -48,16 +51,19 @@ CHECKS = []                                           # list of (area, check, re
 
 
 def check(area, name, measured, mark, ok):
+    # saving the result and printing PASS or FAIL on one line
     CHECKS.append((area, name, measured, mark, bool(ok)))
     print(f"  {'PASS' if ok else 'FAIL'}  {name:58s} {measured:>22s}   (pass: {mark})")
 
 
 def section(title):
+    # prints a heading for each section
     print("\n" + "=" * 110 + f"\n{title}\n" + "=" * 110)
 
 
 def estimates(tr, lin, L):
     """The methods I compare: finite difference, model only (no encoder), Luenberger, Kalman filter."""
+    # runs the 4 methods on one trial and also gives back the KF's P
     Ad, Bd, xs, us = lin
     X_kf, P_kf = run_kf(tr, Q_A, Ad, Bd, xs, us)
     return {"finite difference": finite_difference(tr),
@@ -72,6 +78,7 @@ if __name__ == "__main__":
     RESULTS.mkdir(exist_ok=True)
     t_start = time.time()
 
+    # setup: scene, model, Luenberger gain, start-up skip
     model, arm, dt, q_home = load_scene()
     lin = linearise(arm, q_home)
     Ad, Bd, x_star, u_star = lin
@@ -83,6 +90,7 @@ if __name__ == "__main__":
 
     # ------------------------------------------------------------------ A. modelling
     section("A. MODELLING (criterion A)")
+    # A1: same 1 s step test as step 1, my linear model vs MuJoCo
     du = 0.05 * np.ones(6)
     d = mujoco.MjData(model)
     d.qpos[arm.qadr] = q_home
@@ -97,6 +105,7 @@ if __name__ == "__main__":
     fit = 100 * (1 - np.linalg.norm(X_nl - X_lin) / np.linalg.norm(X_nl - X_nl.mean(0)))
     check("A", "my linear model matches MuJoCo (1 s step test)", f"{fit:.2f} %", ">= 95 %", fit >= 95)
 
+    # A2: holding u* for 1 s, the arm shouldn't drift
     d = mujoco.MjData(model)
     env.reset_home(model, d)
     d.ctrl[arm.act] = u_star
@@ -105,47 +114,59 @@ if __name__ == "__main__":
     drift = np.abs(d.qpos[arm.qadr] - q_home).max()
     check("A", "arm holds still at home with u* (drift after 1 s)", f"{drift:.1e} rad", "< 1e-6 rad", drift < 1e-6)
 
+    # A3: all poles inside the unit circle = stable
     zmax = np.abs(np.linalg.eigvals(Ad)).max()
     check("A", "model is stable (biggest |pole|)", f"{zmax:.4f}", "< 1", zmax < 1)
 
+    # A4: rank tests for both models
     for name, A_, B_ in [("double integrator", Ad_di, Bd_di), ("MuJoCo model", Ad, Bd)]:
         rc, ro = rank_ctrb_obsv(A_, B_, C)
         check("A", f"controllable + observable with encoders ({name})", f"ranks {rc}, {ro}", "both 12",
               rc == 12 and ro == 12)
+    # A5: PBH tests, needed for the separation principle
     ok = pbh_detectable_d(Ad, C)[0] and pbh_stabilisable_d(Ad, Bd)[0]
     check("A", "detectable + stabilisable (PBH) -> separation OK", str(ok), "True", ok)
 
     # ------------------------------------------------------------------ B. sensing
     section("B. SENSING (criterion B)")
+    # B1: the encoder noise I make matches the Rn the KF thinks it has
     rng = np.random.default_rng(0)
     s = np.array([encoder(q_home, rng) - q_home for _ in range(20000)]).std()
     rel = abs(s - np.sqrt(Rn_for()[0, 0])) / np.sqrt(Rn_for()[0, 0])
     check("B", "encoder noise matches the Rn the filter uses", f"{100 * rel:.1f} % off", "within 5 %", rel < 0.05)
+    # B2: running the same trial twice with the same seed gives exactly the same numbers
     a, b = run_trial(arm, q_home, T=1.0, seed=3), run_trial(arm, q_home, T=1.0, seed=3)
     same = np.array_equal(a["y"], b["y"]) and np.array_equal(a["q"], b["q"])
     check("B", "same seed gives exactly the same data", str(same), "True", same)
 
     # ------------------------------------------------------------------ C. estimation (nominal trial)
     section("C. ESTIMATION, normal trial (criterion C)")
+    # C: the normal 10 s trial, same as step 5
     tr = run_trial(arm, q_home, T=10.0, seed=1)
     X = truth(tr)
     est, P_kf = estimates(tr, lin, L)
     res = {m: metrics(Xh, X, k0) for m, Xh in est.items()}
     kf_a, kf_v = 1e3 * res["Kalman filter"][0].mean(), res["Kalman filter"][1].mean()
     fd_v, lu_v = res["finite difference"][1].mean(), res["Luenberger"][1].mean()
+    # C1: KF angle error lower than just reading the encoder (the main pass mark)
     check("C", "KF angle error is below the raw encoder noise", f"{kf_a:.3f} mrad", f"< {enc_mrad:.3f} mrad", kf_a < enc_mrad)
+    # C2: KF speed at least 50x better than finite difference
     check("C", "KF speed error at least 50x better than finite diff.", f"{fd_v / kf_v:.0f}x", ">= 50x",
           fd_v / kf_v >= 50)
+    # C3: KF beats Luenberger on speed
     check("C", "KF speed error lower than Luenberger", f"{kf_v:.4f} vs {lu_v:.4f}", "KF lower", kf_v < lu_v)
+    # C4: the worst joint's speed error is under 0.01 rad/s
     worst_joint = res["Kalman filter"][1].max()
     check("C", "every joint's speed error is small (worst joint)", f"{worst_joint:.4f} rad/s", "< 0.01 rad/s",
           worst_joint < 0.01)
+    # C5: >= 95 % of the KF errors are inside its own +-2 sigma (it's honest about itself)
     sig = np.sqrt(np.einsum("kii->ki", P_kf))
     inside = 100 * np.mean(np.abs(est["Kalman filter"][k0:] - X[k0:]) < 2 * sig[k0:])
     check("C", "KF errors stay inside its own +-2 sigma band", f"{inside:.1f} %", ">= 95 %", inside >= 95)
 
     # ------------------------------------------------------------------ E. robustness
     section("E. ROBUSTNESS (criterion E) - the observers always use the NORMAL model")
+    # E: all the hard situations (the observers still only have the normal model)
     scen = {"nominal": tr,
             "other pose": run_trial(arm, q_home + np.array([0.4, -0.3, 0.35, 0.3, -0.4, 0.2]), T=8, seed=12),
             "0.5 kg payload": run_trial(arm, q_home, T=8, seed=41, model=payload_model(0.5)),
@@ -154,18 +175,22 @@ if __name__ == "__main__":
             "steady load": run_trial(arm, q_home, T=8, seed=14, disturbance=sustained_load),
             "push": run_trial(arm, q_home, T=8, seed=31, disturbance=push)}
     table = {}                                                       # test -> method -> (angle, speed)
+    # working out the angle and speed error of every method in every situation
     for name, s_tr in scen.items():
         e, _ = estimates(s_tr, lin, L)
         table[name] = {m: (1e3 * metrics(Xh, truth(s_tr), k0)[0].mean(), metrics(Xh, truth(s_tr), k0)[1].mean())
                        for m, Xh in e.items()}
+    # E1-E4: KF angle still below the encoder noise in each hard case
     for name in ["other pose", "1.5 kg payload", "steady load", "push"]:
         a_kf = table[name]["Kalman filter"][0]
         check("E", f"KF angle error below encoder noise: {name}", f"{a_kf:.3f} mrad", f"< {enc_mrad:.3f} mrad",
               a_kf < enc_mrad)
+    # E5: with any load the KF beats 'model only' = the encoder correction is actually doing something
     better = all(table[n]["Kalman filter"][0] < table[n]["model only"][0]
                  for n in ["0.5 kg payload", "1.0 kg payload", "1.5 kg payload", "steady load"])
     check("E", "encoders help: KF beats 'model only' with any load", str(better), "True", better)
 
+    # E6: KF is back below the encoder noise 0.5-1.5 s after the push ends
     pt = scen["push"]
     e_push, _ = estimates(pt, lin, L)
     after = slice(int((PUSH_T + PUSH_LEN + 0.5) / dt), int((PUSH_T + PUSH_LEN + 1.5) / dt))
@@ -173,6 +198,7 @@ if __name__ == "__main__":
     check("E", "KF recovers after the push (0.5-1.5 s later)", f"{rec:.3f} mrad", f"< {enc_mrad:.3f} mrad",
           rec < enc_mrad)
 
+    # E7: same 20 random trials as step 7, the worst one has to be below the encoder noise
     rng = np.random.default_rng(7)
     mc = []
     for i in range(20):
@@ -185,6 +211,7 @@ if __name__ == "__main__":
 
     # ------------------------------------------------------------------ integration: observer.py
     section("INTEGRATION - observer.py (the file the team will use)")
+    # I1: observer.py and step 4 give the same answers on the same data (no copying mistakes)
     o = JointObserver(model, add_noise=False)
     t_short = run_trial(arm, q_home, T=3.0, seed=5)
     X_obs = np.array([np.r_[t_short["y"][0], np.zeros(6)]] +
@@ -194,21 +221,26 @@ if __name__ == "__main__":
     check("I", "observer.py gives the same answers as step 4", f"{diff:.1e}", "< 1e-9", diff < 1e-9)
 
     # same loop as main.py: scene + encoder sensors (added here only, environment.py isn't changed)
+    # temporarily swapping MuJoCo's compile so the scene gets my encoder sensors, then putting it back
     _compile = mujoco.MjSpec.compile
     mujoco.MjSpec.compile = lambda spec: _compile(add_encoder_sensors(spec))
     try:
         m_s = env.build_scene()
     finally:
         mujoco.MjSpec.compile = _compile
+    # I2: running a copy of the main.py loop with my observer in it
     d = mujoco.MjData(m_s)
     env.reset_home(m_s, d)
     obs = JointObserver(m_s, seed=0)
     err, costs = [], []
     for _ in range(int(4.0 / dt)):
+        # timing each update
         t0 = time.perf_counter()
         x_hat, P = obs.update(d.sensordata, d.ctrl)                  # exactly the line in main.py
         costs.append(time.perf_counter() - t0)
+        # error vs the true MuJoCo values
         err.append(x_hat - np.r_[d.qpos[arm.qadr], d.qvel[arm.dof]])
+        # stand-in controller following the test motion
         qr, qdr, qddr = reference(d.time, q_home)
         d.ctrl[arm.act] = arm.ctrl_for_force(arm.inverse_dynamics(qr, qdr, qddr), qr, qdr)
         mujoco.mj_step(m_s, d)
@@ -216,9 +248,11 @@ if __name__ == "__main__":
     a_loop = 1e3 * rmse(err[:, :6]).mean()
     check("I", "works with main.py's update(sensordata, ctrl) line", f"{a_loop:.3f} mrad",
           f"< {enc_mrad:.3f} mrad", a_loop < enc_mrad)
+    # I3: the middle (median) update time has to be under 2 ms (one physics step)
     us = 1e6 * np.median(costs)
     check("I", "fast enough for real time (one update vs 2 ms)", f"{us:.0f} us", "< 2000 us", us < 2000)
 
+    # I4: a scene with no sensors should give my clear error message instead of a weird crash
     try:
         JointObserver(model).update(np.zeros(0), np.zeros(6))
         ok = False
@@ -227,9 +261,11 @@ if __name__ == "__main__":
     check("I", "clear error message if there are no encoder sensors", str(ok), "True", ok)
 
     # ------------------------------------------------------------------ save the report + summary graph
+    # counting how many passed
     n_pass = sum(c[4] for c in CHECKS)
     section(f"RESULT: {n_pass} / {len(CHECKS)} checks passed   ({time.time() - t_start:.0f} s)")
 
+    # writing the markdown report tables
     areas = {"A": "Modelling (A)", "B": "Sensing (B)", "C": "Estimation (C)", "E": "Robustness (E)",
              "I": "Integration"}
     lines = ["# Task 2 test report", "",
@@ -249,6 +285,7 @@ if __name__ == "__main__":
               f"{np.median(mc):.3f} mrad, worst {max(mc):.3f} mrad.", ""]
     (RESULTS / "step8_test_report.md").write_text("\n".join(lines), encoding="utf-8")
 
+    # summary graph: angle and speed error of each method in every situation -> step8_summary.png
     names = list(table)
     x = np.arange(len(names))
     fig, ax = plt.subplots(1, 2, figsize=(15, 4.2))
@@ -270,4 +307,5 @@ if __name__ == "__main__":
 
     print("report -> results/step8_test_report.md   figure -> results/step8_summary.png")
     plt.show()
+    # exit code 0 = all passed, 1 = something failed (run_all.py uses this)
     sys.exit(0 if n_pass == len(CHECKS) else 1)

@@ -1,0 +1,190 @@
+HOW TO READ MY RESULTS - Task 2 (Sameeha)
+
+# Some things that are the same for every graph:
+# Colours (I kept them the same everywhere so it's less confusing):
+#   red    = my Kalman filter (the one in observer.py that Yara uses)
+#   green  = Luenberger observer
+#   orange = "model only" -> just runs my model and ignores the encoders completely
+#   grey   = finite difference -> the simple way, speed = change in angle / dt
+#   purple = Kalman filter with no robot model (only in step 5)
+#   black  = the true value from MuJoCo, so basically the answer key
+# For any error / RMSE graph, lower = better. 0 would be perfect.
+# The black -.-.- line is the raw encoder noise (about 1 mrad). If something is under that line it's
+#   doing better than just reading the encoder, which is the whole point.
+# Lots of the graphs are on a log scale (10^-3, 10^-2, 10^-1). Each grid line up is 10x bigger, so a
+#   bar that only looks a bit taller can actually be 10x or 100x worse. This confused me at first.
+# mrad = 0.001 rad (tiny, about 0.06 degrees). rad/s = how fast the joint is turning.
+# I skip the first 1 s in all the numbers bc the filter is still starting up.
+
+
+## Step 1 - the model
+
+# step1_poles.png
+# Left side = the poles in discrete time (z). The black circle is the unit circle.
+#   Inside the circle = it dies out by itself = stable. Outside = unstable.
+#   The red circle at z = 1 is the textbook model (double integrator). All its poles sit right on the
+#   edge so it's only just stable. My MuJoCo model's poles (blue x's) are all inside, so it's stable.
+# Right side = the same poles but in s. Further left = dies out faster.
+#   The 6 on the right near -5 are the slow servo ones. These are the ones my observer actually
+#   has to keep track of. The ones from -190 to -495 are really fast and die out in a few ms.
+#   Nothing is on the right of the black line (s > 0), so nothing's unstable.
+
+# step1_model_validation.png
+# I gave every motor a small step and ran MuJoCo (solid) and my model (dashed) at the same time.
+# If the dashed lines sit on top of the solid ones then my model is good. They basically overlap,
+#   which is the 99.9 % fit (step 8 needs at least 95 %).
+
+
+## Step 2 - controllability and observability
+
+# step2_gramians.png
+# This shows HOW controllable (Wc, left) and HOW observable (Wo, right) it is, not just yes or no.
+# Higher = easier to control / easier for the encoders to see. If any dot hit 0 it wouldn't be
+#   controllable or observable at all.
+# Blue = textbook model, orange = my MuJoCo model.
+# The orange ones at the bottom left of Wo (~10^-6) are the really fast servo modes. They die out
+#   so quickly the encoders barely see them, but that's fine bc they sort themselves out
+#   (that's what "detectable" means). They're still above 0 so it's observable.
+
+
+## Step 3 - the encoder and the test motion
+
+# step3_trajectory.png
+# The test motion I grade everything on. One box per joint.
+# Black dashed = where I told it to go, blue = where it actually went. They're nearly the same.
+
+# step3_encoder_noise.png
+# Zoomed in to 0.2 s. Black smooth line = the true angle, red jumpy steps = what the encoder reads.
+# The jumping is the noise and the flat steps are the rounding (the encoder can't show every
+#   tiny angle). This messy data is what my filter has to clean up.
+
+
+## Step 5 - my estimate vs the truth (normal trial)
+
+# step5_velocity_estimates.png
+# These are the joint SPEEDS, which are never even measured.
+# Rows 1 and 3: black = true speed, red dashed = my KF. If you can't really see the red it's because
+#   it's sitting on top of the black, which is what I want.
+# Rows 2 and 4: the error of each method. Closer to the middle line (0) = better.
+#   Purple wobbles the most, green is in between, red is the flattest.
+#   Finite difference isn't on there bc it's way off the scale (~0.7 rad/s error).
+
+# step5_kf_error_bounds.png
+# This checks if my KF is honest about how unsure it is.
+# Red = actual error. Blue band = +-2 sigma = how unsure the KF SAYS it is.
+#   Red mostly inside blue (about 95 %) = honest
+#   Red going outside a lot = too confident, which is bad bc it'd basically be lying
+#   Blue way bigger than the red = a bit too careful, which is the safe side
+# Mine had 99.8 % inside, so it's honest and a little careful on purpose (I tuned it for the hard tests).
+
+# step5_accuracy_bars.png
+# Error per joint for every method. Lower bar = better.
+# Left = angle error (normal scale), right = speed error (log scale).
+#   Grey is the tallest on both = worst. Red is low everywhere.
+#   Orange (model only) looks really good here BUT that's only bc nothing goes wrong in this trial,
+#   so the model is perfect. Step 7 shows it falls apart as soon as there's a payload or a push.
+
+# step5_accuracy_table.csv
+# Same numbers as the bar graph but as a table, for the project page.
+
+# step5_nees.png
+# NEES is one number per time step that checks if the KF is honest (it uses all 12 states at once).
+# Black dashed line = 12 = what an honest filter should average.
+#   Below 12 = a bit careful (fine). Way above 12 or above the grey dotted line = too confident (bad).
+# Mine is mostly below 12, so it's not overconfident.
+
+
+## Step 6 - tuning (how I picked my settings)
+
+# step6_luenberger_tuning.png and step6_kf_tuning.png
+# x-axis = the setting I'm trying (w_o for Luenberger, q_a for the KF), on a log scale.
+#   Left = trusting the model more (smooth but wrong when there's a load)
+#   Right = trusting the encoder more (reacts fast but lets the noise through)
+# Each line is a different test: blue = normal, orange = other pose, green = 1 kg payload,
+#   red = steady load. The dotted flat lines are "model only" for the same test, to compare.
+# The black dashed line going up and down = the setting I picked (W_O = 49, Q_A = 100).
+# What to look for: a valley shape. The best setting is near the bottom of the valley for ALL the
+#   lines, not just blue. If I only looked at blue I'd pick way left, but then red and green shoot up.
+#   That's why I tuned on all 4 tests instead of just the normal one.
+# In the KF one, the 3rd graph is NEES. Under the black dashed 12 line = honest. Far left it goes up
+#   to 10^3-10^4 which means it's super overconfident. Where I picked it's under 12 for all of them.
+
+# step6_noise_sweep.png
+# What if the encoder was better or worse? x-axis = encoder noise, left = better encoder. Lower = better.
+# Black dotted line going up = the noise I actually used. Orange dotted line = the rounding limit
+#   (you can't get better than that just by making the noise smaller).
+# Right graph (speed): grey gets ~100x worse as the noise goes up but red stays around 0.01 rad/s.
+# Left graph (angle): red is the lowest for good encoders. For really noisy ones red and green are similar.
+
+
+## Step 7 - robustness (when the real robot isn't the same as my model)
+
+# step7_push.png
+# A 10 N m push on the shoulder lift (orange shaded bit). My observer isn't told about it.
+# Left = angle error, middle = speed error. Closer to 0 = better.
+#   Orange (model only) goes way off (about -7 mrad) and takes ~0.5 s to come back, bc the model
+#   on its own has no idea something pushed it.
+#   Green and red stay a lot closer to 0 and go back to normal as soon as the push stops.
+#   During the push green is a bit better than red on angle. That's a limit of my KF: it expects small
+#   random disturbances, not a sudden big push. (Adding a disturbance state to x would fix this.)
+# Right = true speed (black) vs my KF (red). Red follows the black even through the kink.
+
+# step7_payload.png
+# Adding weight to the wrist, like holding an object. My model doesn't know about it.
+# Left graph (angle, lower = better):
+#   Orange goes up to 3 mrad at 1.5 kg, so 3x worse than just reading the encoder.
+#   Green and red stay flat and low (under 0.4 mrad) bc the encoders fix what the model gets wrong.
+#   This is the graph to show if someone asks "why do we need the observer and not just the model".
+# Right graph (speed): orange is actually the lowest here. That's bc the extra weight mostly makes
+#   the arm sag a bit (so the ANGLE is off) but it doesn't really change the speed. So model only gets
+#   the speed right but the angle wrong. Red is still better than green.
+
+# step7_monte_carlo.png (and step7_monte_carlo.csv)
+# 20 random trials with a random start pose and a random payload (0-1 kg).
+# How to read a box plot: orange line in the box = the middle result, the box = the middle half
+#   of the trials, the lines sticking out = the best and worst ones.
+#   Lower = better, and a shorter box = more consistent.
+# Left (angle): red is the lowest and has a short box, so it's good every time. Orange has a huge box,
+#   so sometimes it's fine and sometimes it's really bad (depends on the payload).
+# Right (speed): grey is ~100x worse than everything else. Orange is the same story as the payload graph.
+
+# step7_relinearised_kf.png
+# I tried re-making the model as the arm moves to see if it helps. Red = one fixed model,
+#   purple = re-made every 0.2 s. They pretty much overlap, so it didn't really help.
+# This is still a good result though: the servos are stiff enough that one model at home is fine,
+#   so the simpler version in observer.py is OK.
+
+
+## Step 8 - all the tests together
+
+# step8_summary.png
+# If I can only show one graph, it's this one.
+# Each group of bars = a different test (normal, other pose, payloads, steady load, push).
+# Left (angle, lower = better): orange goes above the encoder noise line when there's a load,
+#   green and red stay well under it every time.
+# Right (speed, log scale, lower = better): grey is ~0.7 rad/s every time. Red is 50-440x lower,
+#   and lower than green in every test.
+
+# step8_test_report.md
+# All 24 PASS/FAIL checks with what I got and what the pass mark was. 24/24 passed.
+# In VS Code press Ctrl+Shift+V while it's open to see it as a proper table.
+
+
+## Step 9 - live demo (this only shows up after running step9 and closing the window)
+
+# step9_live_demo.png
+# Orange shading = the push, light blue shading = the 1 kg payload.
+# Top: black = true shoulder lift speed, red dashed = my estimate. Red on top of black = good.
+# Middle: red = my speed error, blue band = the KF's +-2 sigma. Red inside blue = honest.
+# Bottom: red = my angle error, blue band = +-2 sigma, black -.-.- lines = raw encoder noise.
+#   Red staying between the two black lines = better than just reading the encoder.
+# The title says what % was inside +-2 sigma (about 95 % or more is good).
+
+
+## my main results:
+# - My KF's angles are 2.5-6x more accurate than the raw encoder in every test.
+# - The speeds (never measured) are 50-440x more accurate than finite difference.
+# - "Model only" breaks as soon as there's a payload or push, and the encoders are what fix it.
+# - The KF is honest about how unsure it is (95 %+ inside +-2 sigma, NEES under 12).
+# - In the full pick-and-place with Yara's code it still gets ~0.2 mrad angle error and
+#   ~0.005 rad/s speed error.

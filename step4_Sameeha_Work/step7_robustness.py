@@ -21,11 +21,13 @@ Run:  python step4_Sameeha_Work/step7_robustness.py
 import sys
 from pathlib import Path
 
+# numpy is imported for the maths and random poses
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
 if str(HERE.parent) not in sys.path:
     sys.path.insert(0, str(HERE.parent))
+# importing everything I need from the earlier steps
 from step4_Sameeha_Work.step1_state_space_model import load_scene, linearise, double_integrator, NAMES, RESULTS  # noqa
 from step4_Sameeha_Work.step3_measurement_and_ground_truth import run_trial, truth, AMP   # noqa: E402
 from step4_Sameeha_Work.step4_observers import (                         # noqa: E402
@@ -33,10 +35,12 @@ from step4_Sameeha_Work.step4_observers import (                         # noqa:
 from step4_Sameeha_Work.step5_evaluation import metrics, nees, K0_S, STYLE   # noqa: E402
 from step4_Sameeha_Work.step6_tuning import payload_model, push, PUSH_T, PUSH_LEN  # noqa: E402
 
+# the 4 methods I compare in every test
 LABELS = ["finite difference", "model only (L = 0)", "Luenberger", "KF (MuJoCo model)"]
 
 
 def estimates(tr, lin, L):
+    # This is to run all 4 methods on one trial (always using the normal model at home)
     Ad, Bd, xs, us = lin
     return {"finite difference": finite_difference(tr),
             "model only (L = 0)": run_luenberger(tr, np.zeros_like(L), Ad, Bd, xs, us),
@@ -52,6 +56,7 @@ if __name__ == "__main__":
     plt.rcParams["axes.grid"] = True
     RESULTS.mkdir(exist_ok=True)
 
+    # setup: scene, normal model at home, Luenberger gain and the start-up skip
     model, arm, dt, q_home = load_scene()
     lin = linearise(arm, q_home)
     _, _, C = double_integrator(dt)
@@ -59,11 +64,15 @@ if __name__ == "__main__":
     k0 = int(K0_S / dt)
 
     # ------------------------------------------------------------------ E.1 push
+    # recording a trial with the push (the observer isn't told about it)
     tr = run_trial(arm, q_home, T=8.0, seed=31, disturbance=push)
     X, t = truth(tr), tr["t"]
     est = estimates(tr, lin, L)
+    # graph window: 0.5 s before the push to 1.5 s after
     w = slice(int((PUSH_T - 0.5) / dt), int((PUSH_T + 1.5) / dt))
+    # the 1 s after the push starts, used for the numbers
     after = slice(int(PUSH_T / dt), int((PUSH_T + 1.0) / dt))
+    # graph: lift angle error, lift speed error, and true vs KF speed, with the push shaded
     fig, ax = plt.subplots(1, 3, figsize=(15, 3.6))
     for lab in LABELS:
         if lab != "finite difference":
@@ -81,14 +90,17 @@ if __name__ == "__main__":
     print("=" * 82)
     print("E.1 - push: shoulder lift error in the 1 s after the push starts")
     print("=" * 82)
+    # printing the error of each method just after the push
     for lab in LABELS:
         e = est[lab][after] - X[after]
         print(f"  {lab:20s} angle RMSE {1e3 * rmse(e[:, 1]):7.3f} mrad   speed RMSE {rmse(e[:, 7]):.4f} rad/s"
               f"   biggest speed error {np.abs(e[:, 7]).max():.4f}")
 
     # ------------------------------------------------------------------ E.2 payload
+    # payloads I test, from nothing up to 1.5 kg
     payloads = [0.0, 0.25, 0.5, 1.0, 1.5]
     pr = {k: np.zeros((len(payloads), 2)) for k in LABELS}
+    # for each payload: record a trial with the heavier robot, then test every method
     for i, kg in enumerate(payloads):
         tr = run_trial(arm, q_home, T=8.0, seed=41, model=payload_model(kg))
         X = truth(tr)
@@ -102,6 +114,7 @@ if __name__ == "__main__":
     print("                " + "".join(f"{'angle [mrad] | speed [rad/s]':>26s}" for _ in LABELS))
     for i, kg in enumerate(payloads):
         print(f"  {kg:10.2f}    " + "".join(f"{pr[lab][i, 0]:13.3f} | {pr[lab][i, 1]:8.4f}" for lab in LABELS))
+    # graph: error vs payload for each method -> step7_payload.png
     fig, ax = plt.subplots(1, 2, figsize=(11, 3.4))
     for lab in LABELS[1:]:
         ax[0].plot(payloads, pr[lab][:, 0], "o-", color=STYLE[lab], label=lab)
@@ -115,22 +128,27 @@ if __name__ == "__main__":
 
     # ------------------------------------------------------------------ E.3 random poses
     N_MC = 20
+    # seed 7 so the 20 random trials are the same every run
     rng = np.random.default_rng(7)
     mc_p = np.zeros((N_MC, len(LABELS))); mc_v = np.zeros_like(mc_p)
     for i in range(N_MC):
+        # random start pose, each joint moved up to +-0.5 rad from home
         q0 = q_home + rng.uniform(-0.5, 0.5, 6)
         kg = rng.uniform(0.0, 1.0)                       # plus a random unknown payload each time
         tr = run_trial(arm, q0, T=6.0, seed=100 + i, model=payload_model(kg))
         X = truth(tr)
+        # testing every method and saving the average errors
         for j, (lab, Xh) in enumerate(estimates(tr, lin, L).items()):
             rp, rv, _ = metrics(Xh, X, k0)
             mc_p[i, j], mc_v[i, j] = 1e3 * rp.mean(), rv.mean()
     print("\n" + "=" * 82)
     print(f"E.3 - {N_MC} trials: start pose +-0.5 rad per joint AND payload 0-1 kg, normal model at home")
     print("=" * 82)
+    # printing the median and the worst of the 20 trials
     for j, lab in enumerate(LABELS):
         print(f"  {lab:20s} angle [mrad] median {np.median(mc_p[:, j]):7.3f} worst {mc_p[:, j].max():7.3f}"
               f"    speed [rad/s] median {np.median(mc_v[:, j]):.4f} worst {mc_v[:, j].max():.4f}")
+    # box plots of the 20 trials -> step7_monte_carlo.png
     fig, ax = plt.subplots(1, 2, figsize=(12, 3.6))
     ax[0].boxplot(mc_p, tick_labels=[l.replace(" (", "\n(") for l in LABELS])
     ax[1].boxplot(mc_v, tick_labels=[l.replace(" (", "\n(") for l in LABELS])
@@ -140,22 +158,27 @@ if __name__ == "__main__":
         a.set_yscale("log"); a.tick_params(axis="x", labelsize=7)
     fig.suptitle(f"E.3 {N_MC} random trials (pose and payload), one normal model")
     plt.tight_layout(); fig.savefig(RESULTS / "step7_monte_carlo.png", dpi=150)
+    # saving all 20 results as a CSV too
     np.savetxt(RESULTS / "step7_monte_carlo.csv", np.hstack([mc_p, mc_v]), delimiter=",", fmt="%.6f",
                header=",".join([f"pos_mrad_{l}" for l in LABELS] + [f"vel_rads_{l}" for l in LABELS]))
 
     # ------------------------------------------------------------------ E.4 re-linearised KF
+    # a motion twice as big with a 0.5 kg payload (harder for one fixed model)
     tr = run_trial(arm, q_home, T=8.0, seed=51, amp=2.0 * AMP, model=payload_model(0.5))
     X = truth(tr)
     Ad, Bd, xs, us = lin
+    # KF with one fixed model vs the same KF re-linearised every 0.2 s
     X_fix, P_fix = run_kf(tr, Q_A, Ad, Bd, xs, us)
     X_rel, P_rel = run_kf(tr, Q_A, Ad, Bd, xs, us, arm=arm, relin_every=int(0.2 / dt))
     print("\n" + "=" * 82)
     print("E.4 - extra: re-linearise the model every 0.2 s (motion 2x bigger, 0.5 kg payload)")
     print("=" * 82)
+    # comparing angle error, speed error and NEES for the two
     for lab, Xh, Ph in [("fixed model at home", X_fix, P_fix), ("re-linearised", X_rel, P_rel)]:
         rp, rv, _ = metrics(Xh, X, k0)
         print(f"  {lab:22s} angle RMSE {1e3 * rp.mean():.3f} mrad   speed RMSE {rv.mean():.4f} rad/s"
               f"   mean NEES {nees(Xh, Ph, X, k0).mean():.1f}")
+    # graph of the angle error over time for both -> step7_relinearised_kf.png
     fig, ax = plt.subplots(figsize=(9, 3))
     ax.plot(tr["t"], 1e3 * np.abs(X_fix[:, :6] - X[:, :6]).mean(1), "C3", lw=0.7, label="fixed model")
     ax.plot(tr["t"], 1e3 * np.abs(X_rel[:, :6] - X[:, :6]).mean(1), "C4", lw=0.7, label="re-linearised")
