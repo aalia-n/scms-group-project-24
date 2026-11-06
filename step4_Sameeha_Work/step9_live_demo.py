@@ -62,7 +62,7 @@ def scene_with_encoders():
 
 
 if __name__ == "__main__":
-    # building the scene with encoders, putting the arm at home and the cube somewhere random
+    # building the scene with encoders, putting the arm at home and the sphere somewhere random
     model = scene_with_encoders()
     data = mujoco.MjData(model)
     env.reset_home(model, data)

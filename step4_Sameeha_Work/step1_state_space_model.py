@@ -35,7 +35,7 @@ REPO = HERE.parent
 # adding the repo folder to the path, otherwise 'import step1_Main...' gives ModuleNotFoundError
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
-# environment.py is imported to use the team's scene (robot + table + cube), so my model is the same world as main.py
+# environment.py is imported to use the team's scene (robot + table + sphere), so my model is the same world as main.py
 import step1_Main.environment as env                                     # noqa: E402
 
 # folder where all my graphs and tables get saved
@@ -53,7 +53,7 @@ STATE_NAMES = [f"q_{n}" for n in NAMES] + [f"qd_{n}" for n in NAMES]
 class Arm:
     """The 6 UR joints inside the scene.
 
-    The scene also has the red cube (it has a free joint, so it adds extra entries to qpos/qvel),
+    The scene also has the red sphere (it has a free joint, so it adds extra entries to qpos/qvel),
     so I look every joint up by name instead of assuming it's index 0-5.
     """
 
@@ -123,7 +123,7 @@ class Arm:
             mujoco.mj_fullM(self.m, d, M)                # MuJoCo 3.17
         except TypeError:
             mujoco.mj_fullM(self.m, M, d.qM)             # older MuJoCo (3.16)
-        # only keeping the 6x6 part for the arm (dropping the cube's free joint)
+        # only keeping the 6x6 part for the arm (dropping the sphere's free joint)
         return M[np.ix_(self.dof, self.dof)]
 
 
@@ -166,13 +166,13 @@ def linearise(arm, q0, n_sub=1, eps=1e-6):
     d.qpos[arm.qadr] = q0
     d.ctrl[arm.act] = arm.hold_ctrl(q0)
     mujoco.mj_forward(m, d)
-    # size of MuJoCo's full state (it includes the cube), the matrices have to be this size first
+    # size of MuJoCo's full state (it includes the sphere), the matrices have to be this size first
     nx = 2 * m.nv + m.na
     A = np.zeros((nx, nx)); B = np.zeros((nx, m.nu))
     # MAIN PART: mjd_transitionFD nudges every state and input by a tiny bit (eps) and checks how one
     # physics step changes -> that gives the A and B matrices (the Jacobians from Week 7)
     mujoco.mjd_transitionFD(m, d, eps, True, A, B, None, None)
-    idx = np.r_[arm.dof, m.nv + arm.dof]                 # keep the arm's 12 states, drop the cube's
+    idx = np.r_[arm.dof, m.nv + arm.dof]                 # keep the arm's 12 states, drop the sphere's
     # cutting A and B down to just the arm's 12 states and 6 motors
     A, B = A[np.ix_(idx, idx)], B[np.ix_(idx, arm.act)]
     # if n_sub > 1 this joins several physics steps into one bigger step (not needed, n_sub = 1 for main.py)
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     print("Part 0 - the scene")
     print("=" * 78)
     print("robot xml :", env.ROBOT_XML)
-    print(f"nq={model.nq}  nv={model.nv}  nu={model.nu}   (6 arm joints + the cube's free joint)")
+    print(f"nq={model.nq}  nv={model.nv}  nu={model.nu}   (6 arm joints + the sphere's free joint)")
     print("timestep  :", dt, "s   (main.py runs the observer every step, so my model uses this dt)")
     print("actuators :", arm.act_type, "servos   kp =", arm.kp, "  kv =", arm.kv)
     print("q_home    :", q_home)

@@ -181,7 +181,7 @@ if __name__ == "__main__":
     print("fastest speed per joint [rad/s]:", np.abs(tr["qd"]).max(0))
     print("how far it lags the reference, max [rad]:", np.abs(tr["q"] - tr["qref"]).max(0))
 
-    # check the arm doesn't hit the table or the cube during the test motion
+    # check the arm doesn't hit the table or the sphere during the test motion
     d = mujoco.MjData(model)
     mujoco.mj_resetDataKeyframe(model, d, 0)
     site = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "attachment_site")
