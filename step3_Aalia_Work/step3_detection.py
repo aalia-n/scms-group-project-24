@@ -31,10 +31,10 @@ def detect_object(rgb):
 
     n, labels, stats, centroids = cv2.connectedComponentsWithStats(mask)
     if n < 2:                                                # label 0 is the background
-        return None
+        return None 
     i = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
     if stats[i, cv2.CC_STAT_AREA] < MIN_AREA:
-        return None
+        return None 
     return labels == i, centroids[i]
 
 
