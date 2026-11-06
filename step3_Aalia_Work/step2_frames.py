@@ -10,7 +10,7 @@ Frame chain:
 W_T_C comes from the joint angles (MuJoCo's forward kinematics), so it is a
 measurement, not ground truth. Transforms are 4x4 arrays; point sets are 3 x N.
 
-Run:  python frames.py   -> localises the cube from one RGB-D frame and compares with ground truth
+Run:  python frames.py   -> localises the sphere from one RGB-D frame and compares with ground truth
 """
 
 import numpy as np
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     with cm.WristCamera(model) as cam:
         cm.pose_arm_to_look_down(model, data, cam.cam_id)
         T_wc = T_world_cam(data, cam.cam_id)
-        # offset the cube from the optical axis so the x/y directions are exercised
+        # offset the sphere from the optical axis so the x/y directions are exercised
         hit = cm.table_point_on_optical_axis(data, cam.cam_id)
         env.place_object(model, data, hit[:2] + 0.05 * T_wc[:2, 0] + 0.03 * T_wc[:2, 1])
         rgb, depth = cam.render_rgbd(data)
@@ -79,4 +79,4 @@ if __name__ == "__main__":
     print("estimate  ", np.round(p_est, 4))
     print("true      ", np.round(p_true, 4))
     print("error [mm]", np.round(1000 * (p_est - p_true), 1),
-          f"(z is about +{1000 * env.OBJ_HALF:.0f} mm: only the cube's top face is visible)")
+          f"(z is about +{1000 * env.OBJ_HALF:.0f} mm: only the sphere's top face is visible)")

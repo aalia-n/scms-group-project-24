@@ -32,7 +32,7 @@ CAM_OFFSET_FLANGE = (0.0, 0.07, 0.02)   # camera position in the flange frame: 7
 TABLE_TOP_Z = 0.001
 TABLE_HALF = (0.6, 0.6, 0.02)
 OBJ_NAME = "target"
-OBJ_HALF = 0.02                         # 4 cm cube
+OBJ_HALF = 0.02                         # sphere radius -> 4 cm diameter
 OBJ_RGBA = (0.85, 0.10, 0.10, 1.0)
 # Where the object may be placed: (x range, y range) [m]. Currently the area the
 # camera sees from the look-down test pose; widen once the approach motion exists.
@@ -77,9 +77,9 @@ def build_scene(robot_xml=ROBOT_XML, calibration_board=False) -> mujoco.MjModel:
     obj.name, obj.pos = OBJ_NAME, (0.13, -0.22, TABLE_TOP_Z + OBJ_HALF)
     joint = obj.add_joint()                                   # free joint: can be moved and picked up
     joint.name, joint.type = OBJ_NAME + "_free", mujoco.mjtJoint.mjJNT_FREE
-    box = obj.add_geom()
-    box.name, box.type = OBJ_NAME + "_geom", mujoco.mjtGeom.mjGEOM_BOX
-    box.size, box.rgba = (OBJ_HALF,) * 3, OBJ_RGBA
+    ball = obj.add_geom()
+    ball.name, ball.type = OBJ_NAME + "_geom", mujoco.mjtGeom.mjGEOM_SPHERE
+    ball.size, ball.rgba = (OBJ_HALF, 0, 0), OBJ_RGBA
 
     light = world.add_light()
     light.pos, light.dir, light.diffuse = (0, 0, 2.0), (0, 0, -1.0), (0.7, 0.7, 0.7)

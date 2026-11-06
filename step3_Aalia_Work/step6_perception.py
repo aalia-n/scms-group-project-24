@@ -54,6 +54,10 @@ class ObjectPerception:
 
     def measure(self, data):
         rgb, depth = self.cam.render_rgbd(data)
+        return self.measure_images(rgb, depth, data)
+
+    def measure_images(self, rgb, depth, data):
+        """Same as measure(), but on images already rendered (noise is added here, fresh each call)."""
         if self.noise:
             rgb, depth = noisy_rgb(rgb, self.rng), noisy_depth(depth, self.rng)
 
